@@ -1,0 +1,152 @@
+from sklearn.datasets import load_iris
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from kneed import KneeLocator
+import matplotlib.pyplot as plt
+
+iris = load_iris()
+X = iris.data
+
+inertia = []
+k_range = range(1, 11)
+
+for k in k_range:
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans.fit(X)
+    inertia.append(kmeans.inertia_)
+
+knee = KneeLocator(k_range, inertia, curve="convex", direction="decreasing")
+optimal_k_elbow = knee.elbow
+
+plt.figure(figsize=(8, 5))
+plt.axvline(optimal_k_elbow, color='r', linestyle='--')
+plt.plot(k_range, inertia, marker='x')
+plt.xlabel('Число кластеров')
+plt.ylabel('Сумма квадратов ошибок')
+plt.grid(True)
+plt.show()
+
+print(f"Оптимальное число кластеров по локтю: {optimal_k_elbow}")
+
+best_silhouette = 0
+best_score = -1
+
+if __name__ == "__main__":
+    for k in range(2, 11):
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+        labels = kmeans.fit_predict(X)
+        score = silhouette_score(X, labels)
+        # print(f"k={k}, Silhouette Score = {score:.4f}") ## тут просто все score
+        if score > best_score:
+            best_score = score
+            best_silhouette = k
+
+    print(f"Оптимальное число кластеров по Silhouette Score: {best_silhouette}")
+
+
+###########################################
+
+import random
+import math
+import itertools
+
+random.seed(42)
+
+def compute_distance(p1, p2):
+    return math.sqrt(sum((a - b) ** 2 for a, b in zip(p1, p2)))
+
+def initialize_centroids(X, k):
+    return random.sample(X, k)
+
+def assign_clusters(X, centroids):
+    labels = []
+    for point in X:
+        distances = [compute_distance(point, centroid) for centroid in centroids]
+        min_index = distances.index(min(distances))
+        labels.append(min_index)
+    return labels
+
+def update_centroids(X, labels, k):
+    new_centroids = []
+    for i in range(k):
+        cluster_points = [X[j] for j in range(len(X)) if labels[j] == i]
+        if cluster_points:
+            mean = [sum(dim) / len(cluster_points) for dim in zip(*cluster_points)]
+        else:
+            mean = [0] * len(X[0])
+        new_centroids.append(mean)
+    return new_centroids
+
+def compute_scores(X, labels, centroids):
+    score = 0
+    for i in range(len(X)):
+        centroid = centroids[labels[i]]
+        score += sum((a - b) ** 2 for a, b in zip(X[i], centroid))
+    return score
+
+def kmeans(X, k, max_iters=100, tol=1e-4):
+    global labels
+    centroids = initialize_centroids(X, k)
+    for _ in range(max_iters):
+        labels = assign_clusters(X, centroids)
+        new_centroids = update_centroids(X, labels, k)
+        diff = sum(compute_distance(a, b) for a, b in zip(centroids, new_centroids))
+        if diff < tol:
+            break
+        centroids = new_centroids
+    score = compute_scores(X, labels, centroids)
+    return centroids, labels, score
+
+def find_optimal_k(X, max_k=10):
+    score_values = []
+    for k in range(1, max_k + 1):
+        _, _, score = kmeans(X, k)
+        score_values.append(score)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, max_k + 1), score_values, marker='x')
+    plt.xlabel('Число кластеров')
+    plt.ylabel('Сумма квадратов ошибок')
+    plt.grid(True)
+    plt.show()
+
+    deltas = [score_values[i - 1] - score_values[i] for i in range(1, len(score_values))]
+    second_deltas = [deltas[i - 1] - deltas[i] for i in range(1, len(deltas))]
+
+    if second_deltas:
+        elbow_k = second_deltas.index(max(second_deltas)) + 2
+        print(f"Оптимальное число кластеров (по своему k-means): {elbow_k}")
+
+    return score_values
+
+def plot_cluster_projections(X, labels):
+    feature_names = ["длина чашелистика", "ширина чашелистика", "длина лепестка", "ширина лепестка"]
+    pairs = list(itertools.combinations(range(4), 2))
+    colors = ['red', 'blue', 'green']
+
+    plt.figure(figsize=(15, 10))
+    for idx, (i, j) in enumerate(pairs):
+        plt.subplot(2, 3, idx + 1)
+        for label in set(labels):
+            xs = [X[p][i] for p in range(len(X)) if labels[p] == label]
+            ys = [X[p][j] for p in range(len(X)) if labels[p] == label]
+            plt.scatter(xs, ys, label=f'Cluster {label}', color=colors[label], s=20)
+        plt.xlabel(feature_names[i])
+        plt.ylabel(feature_names[j])
+        plt.grid(True)
+    plt.tight_layout(rect=(0, 0.03, 1, 0.95))
+    plt.show()
+
+if __name__ == "__main__":
+    iris = load_iris()
+    X = iris.data.tolist()
+    find_optimal_k(X, max_k=10)
+
+    final_k = 3 ## взял 3, как в 1 варианте
+    centroids, labels, _ = kmeans(X, final_k)
+    plot_cluster_projections(X, labels)
+
+
+
+
+
