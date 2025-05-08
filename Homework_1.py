@@ -49,14 +49,20 @@ if __name__ == "__main__":
 import random
 import math
 import itertools
+import matplotlib.pyplot as plt
+import imageio.v2 as imageio
+import os
 
 random.seed(42)
+
 
 def compute_distance(p1, p2):
     return math.sqrt(sum((a - b) ** 2 for a, b in zip(p1, p2)))
 
+
 def initialize_centroids(X, k):
     return random.sample(X, k)
+
 
 def assign_clusters(X, centroids):
     labels = []
@@ -65,6 +71,7 @@ def assign_clusters(X, centroids):
         min_index = distances.index(min(distances))
         labels.append(min_index)
     return labels
+
 
 def update_centroids(X, labels, k):
     new_centroids = []
@@ -77,6 +84,7 @@ def update_centroids(X, labels, k):
         new_centroids.append(mean)
     return new_centroids
 
+
 def compute_scores(X, labels, centroids):
     score = 0
     for i in range(len(X)):
@@ -84,40 +92,50 @@ def compute_scores(X, labels, centroids):
         score += sum((a - b) ** 2 for a, b in zip(X[i], centroid))
     return score
 
+
 def kmeans(X, k, max_iters=100, tol=1e-4):
     global labels
     centroids = initialize_centroids(X, k)
-    for _ in range(max_iters):
+    images = []
+    output_dir = "kmeans_output_images" 
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    for iteration in range(max_iters):
         labels = assign_clusters(X, centroids)
         new_centroids = update_centroids(X, labels, k)
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        colors = ['red', 'blue', 'green', 'purple', 'orange']
+        for i in range(k):
+            cluster_points = [X[j] for j in range(len(X)) if labels[j] == i]
+            ax.scatter([p[0] for p in cluster_points], [p[1] for p in cluster_points], label=f'Cluster {i}', color=colors[i], s=20)
+            
+        ax.scatter([centroid[0] for centroid in centroids], [centroid[1] for centroid in centroids], marker='x', color='black', label='Centroids', s=100)
+        ax.set_title(f'Iteration {iteration + 1}')
+        ax.legend()
+        ax.grid(True)
+
+        image_filename = os.path.join(output_dir, f"iteration_{iteration}.png")
+        plt.tight_layout()
+        plt.savefig(image_filename)
+        plt.close(fig)
+
+        images.append(image_filename)
+
         diff = sum(compute_distance(a, b) for a, b in zip(centroids, new_centroids))
         if diff < tol:
             break
         centroids = new_centroids
-    score = compute_scores(X, labels, centroids)
-    return centroids, labels, score
 
-def find_optimal_k(X, max_k=10):
-    score_values = []
-    for k in range(1, max_k + 1):
-        _, _, score = kmeans(X, k)
-        score_values.append(score)
+    with imageio.get_writer('kmeans_steps.gif', mode='I', duration=0.5) as writer:
+        for image in images:
+            img = imageio.imread(image)
+            writer.append_data(img)
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(range(1, max_k + 1), score_values, marker='x')
-    plt.xlabel('Число кластеров')
-    plt.ylabel('Сумма квадратов ошибок')
-    plt.grid(True)
-    plt.show()
+    return centroids, labels
 
-    deltas = [score_values[i - 1] - score_values[i] for i in range(1, len(score_values))]
-    second_deltas = [deltas[i - 1] - deltas[i] for i in range(1, len(deltas))]
-
-    if second_deltas:
-        elbow_k = second_deltas.index(max(second_deltas)) + 2
-        print(f"Оптимальное число кластеров (по своему k-means): {elbow_k}")
-
-    return score_values
 
 def plot_cluster_projections(X, labels):
     feature_names = ["длина чашелистика", "ширина чашелистика", "длина лепестка", "ширина лепестка"]
@@ -137,16 +155,12 @@ def plot_cluster_projections(X, labels):
     plt.tight_layout(rect=(0, 0.03, 1, 0.95))
     plt.show()
 
+
 if __name__ == "__main__":
+    from sklearn.datasets import load_iris
+
     iris = load_iris()
     X = iris.data.tolist()
-    find_optimal_k(X, max_k=10)
-
-    final_k = 3 ## взял 3, как в 1 варианте
-    centroids, labels, _ = kmeans(X, final_k)
+    final_k = 3  # взял 3, как в 1 варианте
+    centroids, labels = kmeans(X, final_k)
     plot_cluster_projections(X, labels)
-
-
-
-
-
